@@ -125,6 +125,19 @@ class TestPotterPricer < Test::Unit::TestCase
 		target = PotterPricer.new(bookPrice, book_discounts)
 		assert_equal 2 * (bookPrice * 2 * book_discounts.get_discount_percentage_for(2)), target.price(basket)
 	end
+
+	def test_one_set_of_five_plus_one_single_book
+		book_discounts = get_book_discounts()
+		basket = Basket.new()
+			.add_book(1)
+			.add_book(2)
+			.add_book(2)			
+			.add_book(3)
+			.add_book(4)
+			.add_book(5)
+		target = PotterPricer.new(bookPrice, book_discounts)
+		assert_equal bookPrice + (bookPrice * 5 * book_discounts.get_discount_percentage_for(5)), target.price(basket)
+	end
 end
 
 class PotterPricer
@@ -155,22 +168,19 @@ class StandardDiscountPriceCalculator
 	end
 
 	def calculate(basket)						
-		return get_discount_total(basket.books) + get_none_discount_total(basket.books)					
+		return get_discount_total(basket) + @price_calculator.calculate(basket.number_of_books)					
 	end
 
-	def get_none_discount_total(remaining_books)
-		@price_calculator.calculate(remaining_books.length)
-	end
+	private 
 
-	def get_discount_total(books)
-		unique = books.uniq
+	def get_discount_total(basket)
+		unique = basket.books.uniq
 		unique.each do |bookId|
-			books.delete_at(books.index(bookId))
+			basket.remove_book(bookId)
 		end
-		return calculate_discount_price(unique.length) if (books.length <= 1)
-		return calculate_discount_price(unique.length) + get_discount_total(books)
+		return calculate_discount_price(unique.length) if (basket.number_of_books <= 1)
+		return calculate_discount_price(unique.length) + get_discount_total(basket)
 	end
-
 
 	def calculate_discount_price(number_of_books)
 		@price_calculator.calculate(number_of_books) * @book_discounts.get_discount_percentage_for(number_of_books)
@@ -202,5 +212,13 @@ class Basket
 	def add_book(bookId)
 		@books.push(bookId)
 		self
+	end
+
+	def remove_book(bookId)
+		@books.delete_at(@books.index(bookId))
+	end
+
+	def number_of_books()
+		@books.length
 	end
 end
