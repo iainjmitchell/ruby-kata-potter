@@ -107,15 +107,37 @@ class TestPotterPricer < Test::Unit::TestCase
 end
 
 class PotterPricer
-	def initialize(price, book_discounts)
-		@price = price
-		@book_discounts = book_discounts
+	def initialize(price, book_discounts)		
+		price_calculator = NoDiscountPriceCalculator.new(price)
+		@discount_price_calculator = StandardDiscountPriceCalculator.new(price_calculator, book_discounts)
 	end
 
 	def price(basket)
-		return basket.books.length * @price  * @book_discounts.get_discount_percentage_for(basket.books.uniq.length) 
+		return @discount_price_calculator.calculate(basket)
 	end
 end
+
+class NoDiscountPriceCalculator
+	def initialize(price)
+		@price = price
+	end
+
+	def calculate(basket)
+		basket.books.length * @price
+	end
+end
+
+class StandardDiscountPriceCalculator
+	def initialize(price_calculator, book_discounts)
+		@price_calculator = price_calculator
+		@book_discounts = book_discounts
+	end
+
+	def calculate(basket)
+		@price_calculator.calculate(basket) * @book_discounts.get_discount_percentage_for(basket.books.uniq.length) 
+	end
+end
+
 
 class BookDiscounts
 	def initialize()
