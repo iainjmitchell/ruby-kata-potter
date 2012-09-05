@@ -154,10 +154,12 @@ class StandardDiscountPriceCalculator
 		@book_discounts = book_discounts
 	end
 
-	def calculate(basket)		
-		books = Array.new(basket.books)		
-		discount_total = get_discount_total(books)		
-		return discount_total + @price_calculator.calculate(books.length)					
+	def calculate(basket)						
+		return get_discount_total(basket.books) + get_none_discount_total(basket.books)					
+	end
+
+	def get_none_discount_total(remaining_books)
+		@price_calculator.calculate(remaining_books.length)
 	end
 
 	def get_discount_total(books)
@@ -174,7 +176,6 @@ class StandardDiscountPriceCalculator
 		@price_calculator.calculate(number_of_books) * @book_discounts.get_discount_percentage_for(number_of_books)
 	end
 end
-
 
 class BookDiscounts
 	def initialize()
@@ -203,4 +204,3 @@ class Basket
 		self
 	end
 end
-
