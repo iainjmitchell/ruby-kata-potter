@@ -138,6 +138,21 @@ class TestPotterPricer < Test::Unit::TestCase
 		target = PotterPricer.new(bookPrice, book_discounts)
 		assert_equal bookPrice + (bookPrice * 5 * book_discounts.get_discount_percentage_for(5)), target.price(basket)
 	end
+
+	def test_that_two_sets_four_priotises_over_five_discount
+		book_discounts = get_book_discounts()
+		basket = Basket.new()
+			.add_book(1)
+			.add_book(1)
+			.add_book(2)			
+			.add_book(2)
+			.add_book(3)
+			.add_book(3)
+			.add_book(4)
+			.add_book(5)
+		target = PotterPricer.new(bookPrice, book_discounts)
+		assert_equal 2 * (bookPrice * 4 * book_discounts.get_discount_percentage_for(4)), target.price(basket)
+	end
 end
 
 class PotterPricer
@@ -167,19 +182,36 @@ class StandardDiscountPriceCalculator
 		@book_discounts = book_discounts
 	end
 
-	def calculate(basket)						
-		return get_discount_total(basket) + @price_calculator.calculate(basket.number_of_books)					
+	def calculate(basket)	
+		books = Array.new(basket.books)			
+		standardTotal = get_discount_total(books);
+		books2 = Array.new(basket.books)
+		altTotal = get_discount_total_4_priority(books2)
+
+		return standardTotal > altTotal ? altTotal : standardTotal	
 	end
 
 	private 
 
-	def get_discount_total(basket)
-		unique = basket.books.uniq
-		unique.each do |bookId|
-			basket.remove_book(bookId)
+	def get_discount_total_4_priority(books)
+		unique = books.uniq
+		if unique.length > 4
+			unique = unique.take(4)
 		end
-		return calculate_discount_price(unique.length) if (basket.number_of_books <= 1)
-		return calculate_discount_price(unique.length) + get_discount_total(basket)
+		unique.each do |bookId|
+			books.delete_at(books.index(bookId))
+		end
+		return calculate_discount_price(unique.length) + @price_calculator.calculate(books.length) if (books.length <= 1)
+		return calculate_discount_price(unique.length) + get_discount_total_4_priority(books)
+	end
+
+	def get_discount_total(books)
+		unique = books.uniq
+		unique.each do |bookId|
+			books.delete_at(books.index(bookId))
+		end
+		return calculate_discount_price(unique.length) + @price_calculator.calculate(books.length) if (books.length <= 1)
+		return calculate_discount_price(unique.length) + get_discount_total(books)
 	end
 
 	def calculate_discount_price(number_of_books)
