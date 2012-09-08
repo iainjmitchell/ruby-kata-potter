@@ -153,17 +153,59 @@ class TestPotterPricer < Test::Unit::TestCase
 		target = PotterPricer.new(bookPrice, book_discounts)
 		assert_equal 2 * (bookPrice * 4 * book_discounts.get_discount_percentage_for(4)), target.price(basket)
 	end
+
+	def test_big
+		book_discounts = get_book_discounts()
+		basket = Basket.new()
+			.add_book(1)
+			.add_book(1)
+			.add_book(1)
+			.add_book(1)
+			.add_book(1)
+			.add_book(2)
+			.add_book(2)
+			.add_book(2)
+			.add_book(2)
+			.add_book(2)
+			.add_book(3)
+			.add_book(3)
+			.add_book(3)
+			.add_book(3)
+			.add_book(4)
+			.add_book(4)
+			.add_book(4)
+			.add_book(4)
+			.add_book(4)
+			.add_book(5)
+			.add_book(5)
+			.add_book(5)
+			.add_book(5)
+		target = PotterPricer.new(bookPrice, book_discounts)
+		assert_equal 3 * (bookPrice * 5 * book_discounts.get_discount_percentage_for(5)) + 
+			2 * (bookPrice * 4 * book_discounts.get_discount_percentage_for(4)), target.price(basket)
+	end
 end
 
 class PotterPricer
 	def initialize(price, book_discounts)		
 		price_calculator = NoDiscountPriceCalculator.new(price)
-		four_books_calculator = DiscountPriceCalculator.new(price_calculator, book_discounts, FourBookSetStategy.new())
-		@discount_price_calculator = DiscountPriceCalculator.new(price_calculator, book_discounts, MaxBookSetStrategy.new(), four_books_calculator)
+		discount_price_calculator = DiscountPriceCalculator.new(price_calculator, book_discounts)
+		@discount_price_strategy = DiscountPriceStategy.new(price_calculator, discount_price_calculator)
 	end
 
 	def price(basket)
-		return @discount_price_calculator.calculate(basket)
+		return @discount_price_strategy.calculate(basket)
+	end
+end
+
+class DiscountPriceCalculator
+	def initialize(price_calculator, book_discounts)
+		@price_calculator = price_calculator
+		@book_discounts = book_discounts
+	end
+
+	def calculate(number_of_books)
+		@price_calculator.calculate(number_of_books) * @book_discounts.get_discount_percentage_for(number_of_books)
 	end
 end
 
@@ -177,54 +219,45 @@ class NoDiscountPriceCalculator
 	end
 end
 
-class FourBookSetStategy
-	def get_book_set(books)
-		unique = books.uniq
-		if unique.length > 4
-			unique = unique.take(4)
-		end
-		return unique
-	end
-end
-
-class MaxBookSetStrategy
-	def get_book_set(books)
-		unique = books.uniq
-	end
-end
-
-class DiscountPriceCalculator
-	def initialize(price_calculator, book_discounts, discount_stategy, next_calculator = nil)
+class DiscountPriceStategy
+	def initialize(price_calculator, discount_price_calculator)
 		@price_calculator = price_calculator
-		@book_discounts = book_discounts
-		@discount_stategy = discount_stategy
-		@next_calculator = next_calculator
+		@discount_price_calculator = discount_price_calculator
 	end
 
 	def calculate(basket)
-		books = Array.new(basket.books)
-		total = get_discount_total(books)
-		if (@next_calculator == nil)
-			return total
-		else
-			next_total =  @next_calculator.calculate(basket)
-			return (total < next_total) ? total : next_total
-		end
+		return get_lowest_total(basket.books)
 	end
 
 	private
 
-	def get_discount_total(books)
-		unique = @discount_stategy.get_book_set(books)
-		unique.each do |bookId|
-			books.delete_at(books.index(bookId))
+	def get_total(books, book_quantity)
+		book_set = books.uniq
+		if (book_set.length > book_quantity)
+			book_set = book_set.take(book_quantity)
 		end
-		return calculate_discount_price(unique.length) + @price_calculator.calculate(books.length) if (books.length <= 1)
-		return calculate_discount_price(unique.length) + get_discount_total(books)
+		total = @discount_price_calculator.calculate(book_set.length)
+
+		remaining_books = get_remaining_books(books, book_set)
+		return total + @price_calculator.calculate(remaining_books.length) if (remaining_books.length <= 1)
+		return total + get_lowest_total(remaining_books)
 	end
 
-	def calculate_discount_price(number_of_books)
-		@price_calculator.calculate(number_of_books) * @book_discounts.get_discount_percentage_for(number_of_books)
+	def get_lowest_total(remaining_books)
+		lowest_next_total = nil
+		for discount_quantity in 2..5
+			current_next_total = get_total(remaining_books, discount_quantity)
+			lowest_next_total = current_next_total if (lowest_next_total == nil) || (lowest_next_total > current_next_total)
+		end
+		return lowest_next_total
+	end
+
+	def get_remaining_books(books, book_set)
+		remaining_books = Array.new(books)
+		book_set.each do |bookId|
+			remaining_books.delete_at(remaining_books.index(bookId))
+		end
+		return remaining_books
 	end
 end
 
