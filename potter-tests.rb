@@ -158,7 +158,8 @@ end
 class PotterPricer
 	def initialize(price, book_discounts)		
 		price_calculator = NoDiscountPriceCalculator.new(price)
-		@discount_price_calculator = StandardDiscountPriceCalculator.new(price_calculator, book_discounts)
+		four_books_calculator = DiscountPriceCalculator.new(price_calculator, book_discounts, FourBookSetStategy.new())
+		@discount_price_calculator = DiscountPriceCalculator.new(price_calculator, book_discounts, MaxBookSetStrategy.new(), four_books_calculator)
 	end
 
 	def price(basket)
@@ -176,37 +177,45 @@ class NoDiscountPriceCalculator
 	end
 end
 
-class StandardDiscountPriceCalculator
-	def initialize(price_calculator, book_discounts)
-		@price_calculator = price_calculator
-		@book_discounts = book_discounts
-	end
-
-	def calculate(basket)	
-		books = Array.new(basket.books)			
-		standardTotal = get_discount_total(books);
-		books2 = Array.new(basket.books)
-		altTotal = get_discount_total_4_priority(books2)
-
-		return standardTotal > altTotal ? altTotal : standardTotal	
-	end
-
-	private 
-
-	def get_discount_total_4_priority(books)
+class FourBookSetStategy
+	def get_book_set(books)
 		unique = books.uniq
 		if unique.length > 4
 			unique = unique.take(4)
 		end
-		unique.each do |bookId|
-			books.delete_at(books.index(bookId))
-		end
-		return calculate_discount_price(unique.length) + @price_calculator.calculate(books.length) if (books.length <= 1)
-		return calculate_discount_price(unique.length) + get_discount_total_4_priority(books)
+		return unique
+	end
+end
+
+class MaxBookSetStrategy
+	def get_book_set(books)
+		unique = books.uniq
+	end
+end
+
+class DiscountPriceCalculator
+	def initialize(price_calculator, book_discounts, discount_stategy, next_calculator = nil)
+		@price_calculator = price_calculator
+		@book_discounts = book_discounts
+		@discount_stategy = discount_stategy
+		@next_calculator = next_calculator
 	end
 
+	def calculate(basket)
+		books = Array.new(basket.books)
+		total = get_discount_total(books)
+		if (@next_calculator == nil)
+			return total
+		else
+			next_total =  @next_calculator.calculate(basket)
+			return (total < next_total) ? total : next_total
+		end
+	end
+
+	private
+
 	def get_discount_total(books)
-		unique = books.uniq
+		unique = @discount_stategy.get_book_set(books)
 		unique.each do |bookId|
 			books.delete_at(books.index(bookId))
 		end
